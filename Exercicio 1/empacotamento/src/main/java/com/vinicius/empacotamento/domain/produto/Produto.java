@@ -1,6 +1,6 @@
 package com.vinicius.empacotamento.domain.produto;
 
-import com.vinicius.empacotamento.domain.dimensoes.Dimensoes;
+import com.vinicius.empacotamento.domain.dimensoes.Dimensao;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,5 +20,5 @@ public class Produto {
     private String nome;
 
     @Embedded
-    private Dimensoes dimensoes;
+    private Dimensao dimensao;
 }

@@ -1,6 +1,6 @@
 package com.vinicius.empacotamento.domain.caixa;
 
-import com.vinicius.empacotamento.domain.dimensoes.Dimensoes;
+import com.vinicius.empacotamento.domain.dimensoes.Dimensao;
 import com.vinicius.empacotamento.domain.pedido.Pedido;
 import com.vinicius.empacotamento.domain.produto.Produto;
 import jakarta.persistence.*;
@@ -24,7 +24,7 @@ public class Caixa {
     private String nome;
 
     @Embedded
-    private Dimensoes dimensoes;
+    private Dimensao dimensao;
 
     @ManyToMany
     @JoinTable(

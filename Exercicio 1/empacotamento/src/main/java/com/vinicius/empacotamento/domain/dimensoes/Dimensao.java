@@ -11,9 +11,13 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 @Embeddable
-public class Dimensoes {
+public class Dimensao {
 
     private double altura;
     private double largura;
     private double comprimento;
+
+    public double getVolume() {
+        return altura * largura * comprimento;
+    }
 }
