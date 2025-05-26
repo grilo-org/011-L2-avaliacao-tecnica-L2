@@ -1,40 +1,73 @@
 package com.vinicius.empacotamento.domain.caixa;
 
-import com.vinicius.empacotamento.domain.dimensoes.Dimensao;
-import com.vinicius.empacotamento.domain.pedido.Pedido;
-import com.vinicius.empacotamento.domain.produto.Produto;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
-import java.util.List;
-
-@Getter
-@Setter
-@AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode(of = "id")
-@Table(name = "caixas")
-@Entity(name = "Caixa")
+@AllArgsConstructor
+@Entity
+@Table(name = "caixa")
 public class Caixa {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private String id;
+    @Column(name = "codigo")
+    private String codigo;
 
-    private String nome;
+    @Column(name = "altura", nullable = false)
+    private double altura;
 
-    @Embedded
-    private Dimensao dimensao;
+    @Column(name = "largura", nullable = false)
+    private double largura;
 
-    @ManyToMany
-    @JoinTable(
-            name = "caixa_produto",
-            joinColumns = @JoinColumn(name = "caixa_id"),
-            inverseJoinColumns = @JoinColumn(name = "produto_id")
-    )
-    private List<Produto> produtos;
+    @Column(name = "comprimento", nullable = false)
+    private double comprimento;
 
-    @ManyToOne
-    @JoinColumn(name = "pedido_id")
-    private Pedido pedido;
+    @Column(name = "volume_maximo", insertable = false, updatable = false)
+    private double volumeMaximo;
+
+    @PrePersist
+    @PreUpdate
+    private void calcularVolume() {
+        this.volumeMaximo = altura * largura * comprimento;
+    }
+
+    public String getCodigo() {
+        return codigo;
+    }
+
+    public void setCodigo(String codigo) {
+        this.codigo = codigo;
+    }
+
+    public double getAltura() {
+        return altura;
+    }
+
+    public void setAltura(double altura) {
+        this.altura = altura;
+    }
+
+    public double getLargura() {
+        return largura;
+    }
+
+    public void setLargura(double largura) {
+        this.largura = largura;
+    }
+
+    public double getComprimento() {
+        return comprimento;
+    }
+
+    public void setComprimento(double comprimento) {
+        this.comprimento = comprimento;
+    }
+
+    public double getVolumeMaximo() {
+        return volumeMaximo;
+    }
+
+    public void setVolumeMaximo(double volumeMaximo) {
+        this.volumeMaximo = volumeMaximo;
+    }
 }

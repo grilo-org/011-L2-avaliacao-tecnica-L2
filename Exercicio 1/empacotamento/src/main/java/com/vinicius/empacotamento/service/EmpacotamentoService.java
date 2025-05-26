@@ -1,89 +1,104 @@
 package com.vinicius.empacotamento.service;
 
 import com.vinicius.empacotamento.domain.caixa.Caixa;
-import com.vinicius.empacotamento.domain.caixa.CaixaRepository;
-import com.vinicius.empacotamento.domain.pedido.Pedido;
-import com.vinicius.empacotamento.domain.pedido.PedidoRepository;
-import com.vinicius.empacotamento.domain.produto.Produto;
-import jakarta.transaction.Transactional;
+import com.vinicius.empacotamento.domain.caixa.CaixaEmpacotadaDTO;
+import com.vinicius.empacotamento.domain.empacotamento.EmpacotamentoRequestDTO;
+import com.vinicius.empacotamento.domain.empacotamento.EmpacotamentoResponseDTO;
+import com.vinicius.empacotamento.domain.pedido.PedidoEmpacotadoDTO;
+import com.vinicius.empacotamento.domain.pedido.PedidoInputDTO;
+import com.vinicius.empacotamento.domain.produto.ProdutoInputDTO;
+import com.vinicius.empacotamento.domain.produto.ProdutoNaCaixaDTO;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class EmpacotamentoService {
 
-    private final PedidoRepository pedidoRepository;
-    private final CaixaRepository caixaRepository;
+    public EmpacotamentoResponseDTO empacotarPedidos(EmpacotamentoRequestDTO request, List<Caixa> caixasDisponiveis) {
+        List<PedidoEmpacotadoDTO> pedidosEmpacotados = request.pedidos().stream()
+                .map(pedido -> empacotarPedido(pedido, caixasDisponiveis))
+                .toList();
 
-    public EmpacotamentoService(PedidoRepository pedidoRepository, CaixaRepository caixaRepository) {
-        this.pedidoRepository = pedidoRepository;
-        this.caixaRepository = caixaRepository;
+        return new EmpacotamentoResponseDTO(pedidosEmpacotados);
     }
 
-    @Transactional
-    public Pedido processarPedido(Pedido pedido) {
-        List<Produto> produtos = new ArrayList<>(pedido.getProdutos());
-        produtos.sort(Comparator.comparingDouble(p -> -p.getDimensao().getVolume()));
+    private PedidoEmpacotadoDTO empacotarPedido(PedidoInputDTO pedido, List<Caixa> caixasDisponiveis) {
+        // Ordena caixas por volume (menor primeiro para otimização)
+        List<Caixa> caixasOrdenadas = caixasDisponiveis.stream()
+                .sorted(Comparator.comparingDouble(Caixa::getVolumeMaximo))
+                .toList();
 
-        List<Caixa> caixasDisponiveis = caixaRepository.findAll();
-        caixasDisponiveis.sort(Comparator.comparingDouble(c -> c.getDimensao().getVolume()));
+        List<ProdutoInputDTO> produtosParaEmpacotar = new ArrayList<>(pedido.produtos());
+        List<CaixaEmpacotadaDTO> caixasUtilizadas = new ArrayList<>();
 
-        List<Caixa> caixasUsadas = new ArrayList<>();
+        while (!produtosParaEmpacotar.isEmpty()) {
+            Optional<CaixaEmpacotadaDTO> caixaOpt = encontrarMelhorCaixa(produtosParaEmpacotar, caixasOrdenadas);
 
-        for (Produto produto : produtos) {
-            Caixa caixaSelecionada = encontrarCaixaQueComportaProduto(caixasUsadas, produto);
-
-            if (caixaSelecionada != null) {
-                caixaSelecionada.getProdutos().add(produto);
+            if (caixaOpt.isPresent()) {
+                CaixaEmpacotadaDTO caixa = caixaOpt.get();
+                caixasUtilizadas.add(caixa);
+                // Remove produtos já empacotados
+                caixa.produtos().forEach(p ->
+                        produtosParaEmpacotar.removeIf(prod -> prod.produto_id().equals(p.produto_id())));
             } else {
-                Optional<Caixa> novaCaixaOptional = caixasDisponiveis.stream()
-                        .filter(c -> cabeDentro(produto, c))
-                        .findFirst();
-
-                if (novaCaixaOptional.isEmpty()) {
-                    throw new RuntimeException("Nenhuma caixa disponível comporta o produto: " + produto.getNome());
-                }
-
-                Caixa novaCaixa = clonarCaixa(novaCaixaOptional.get());
-                novaCaixa.setPedido(pedido);
-                novaCaixa.setProdutos(new ArrayList<>(List.of(produto)));
-                caixasUsadas.add(novaCaixa);
+                // Caso algum produto não caiba em nenhuma caixa
+                throw new RuntimeException(
+                        String.format("Produto %s não cabe em nenhuma caixa disponível",
+                                produtosParaEmpacotar.get(0).produto_id()));
             }
         }
 
-        pedido.setCaixas(caixasUsadas);
-        return pedidoRepository.save(pedido);
+        return new PedidoEmpacotadoDTO(
+                pedido.pedido_id(),
+                caixasUtilizadas,
+                caixasUtilizadas.size()
+        );
     }
 
-    private Caixa encontrarCaixaQueComportaProduto(List<Caixa> caixas, Produto produto) {
+    private Optional<CaixaEmpacotadaDTO> encontrarMelhorCaixa(
+            List<ProdutoInputDTO> produtos, List<Caixa> caixas) {
+
         for (Caixa caixa : caixas) {
-            double volumeOcupado = caixa.getProdutos().stream()
-                    .mapToDouble(p -> p.getDimensao().getVolume())
-                    .sum();
+            List<ProdutoInputDTO> produtosNaCaixa = new ArrayList<>();
+            double volumeOcupado = 0;
 
-            double volumeTotal = caixa.getDimensao().getVolume();
+            for (ProdutoInputDTO produto : produtos) {
+                if (cabeNaCaixa(produto, caixa)) {
+                    double volumeProduto = produto.dimensoes().altura() *
+                            produto.dimensoes().largura() *
+                            produto.dimensoes().comprimento();
+                    if (volumeOcupado + volumeProduto <= caixa.getVolumeMaximo()) {
+                        produtosNaCaixa.add(produto);
+                        volumeOcupado += volumeProduto;
+                    }
+                }
+            }
 
-            if ((volumeOcupado + produto.getDimensao().getVolume()) <= volumeTotal) {
-                return caixa;
+            if (!produtosNaCaixa.isEmpty()) {
+                List<ProdutoNaCaixaDTO> produtosDTO = produtosNaCaixa.stream()
+                        .map(p -> new ProdutoNaCaixaDTO(p.produto_id()))
+                        .toList();
+
+                return Optional.of(new CaixaEmpacotadaDTO(
+                        caixa.getCodigo(),
+                        volumeOcupado,
+                        caixa.getVolumeMaximo(),
+                        produtosDTO
+                ));
             }
         }
-        return null;
+
+        return Optional.empty();
     }
 
-    private boolean cabeDentro(Produto produto, Caixa caixa) {
-        var dProd = produto.getDimensao();
-        var dCaixa = caixa.getDimensao();
-        return dProd.getAltura() <= dCaixa.getAltura()
-                && dProd.getLargura() <= dCaixa.getLargura()
-                && dProd.getComprimento() <= dCaixa.getComprimento();
-    }
-
-    private Caixa clonarCaixa(Caixa modelo) {
-        Caixa nova = new Caixa();
-        nova.setNome(modelo.getNome());
-        nova.setDimensao(modelo.getDimensao());
-        nova.setProdutos(new ArrayList<>());
-        return nova;
+    private boolean cabeNaCaixa(ProdutoInputDTO produto, Caixa caixa) {
+        // Implementação simples - pode ser melhorada com rotação 3D
+        return produto.dimensoes().altura() <= caixa.getAltura() &&
+                produto.dimensoes().largura() <= caixa.getLargura() &&
+                produto.dimensoes().comprimento() <= caixa.getComprimento();
     }
 }
