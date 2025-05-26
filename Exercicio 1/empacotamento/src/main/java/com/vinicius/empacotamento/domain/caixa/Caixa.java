@@ -25,6 +25,13 @@ public class Caixa {
     @Column(name = "volume_maximo", insertable = false, updatable = false)
     private double volumeMaximo;
 
+    public Caixa(String codigo, double altura, double largura, double comprimento) {
+        this.codigo = codigo;
+        this.altura = altura;
+        this.largura = largura;
+        this.comprimento = comprimento;
+    }
+
     @PrePersist
     @PreUpdate
     private void calcularVolume() {

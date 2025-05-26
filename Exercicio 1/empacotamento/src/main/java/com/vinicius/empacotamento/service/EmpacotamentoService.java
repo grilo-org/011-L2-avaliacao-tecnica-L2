@@ -26,7 +26,7 @@ public class EmpacotamentoService {
         return new EmpacotamentoResponseDTO(pedidosEmpacotados);
     }
 
-    private PedidoEmpacotadoDTO empacotarPedido(PedidoInputDTO pedido, List<Caixa> caixasDisponiveis) {
+    PedidoEmpacotadoDTO empacotarPedido(PedidoInputDTO pedido, List<Caixa> caixasDisponiveis) {
         // Ordena caixas por volume (menor primeiro para otimização)
         List<Caixa> caixasOrdenadas = caixasDisponiveis.stream()
                 .sorted(Comparator.comparingDouble(Caixa::getVolumeMaximo))
@@ -59,7 +59,7 @@ public class EmpacotamentoService {
         );
     }
 
-    private Optional<CaixaEmpacotadaDTO> encontrarMelhorCaixa(
+    Optional<CaixaEmpacotadaDTO> encontrarMelhorCaixa(
             List<ProdutoInputDTO> produtos, List<Caixa> caixas) {
 
         for (Caixa caixa : caixas) {
@@ -96,7 +96,6 @@ public class EmpacotamentoService {
     }
 
     private boolean cabeNaCaixa(ProdutoInputDTO produto, Caixa caixa) {
-        // Implementação simples - pode ser melhorada com rotação 3D
         return produto.dimensoes().altura() <= caixa.getAltura() &&
                 produto.dimensoes().largura() <= caixa.getLargura() &&
                 produto.dimensoes().comprimento() <= caixa.getComprimento();
